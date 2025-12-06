@@ -64,7 +64,7 @@ const saveRefreshIntervals = () => {
         priceRefreshInterval: priceInterval.value,
         klineRefreshInterval: klineInterval.value,
     });
-    // TODO: 通知应用更新刷新间隔
+    emit('close');
 };
 
 const validateInterval = (value: number, min: number = 1, max: number = 60) => {
@@ -107,11 +107,11 @@ onUnmounted(() => {
         <div class="p-4 space-y-3">
             <!-- 刷新间隔设置 -->
             <div>
-                <h3 class="text-sm font-bold text-gray-700 mb-2">刷新间隔设置</h3>
+                <h3 class="text-sm font-bold text-gray-900 mb-2">刷新间隔设置</h3>
                 <div class="space-y-2">
                     <!-- 价格刷新间隔 -->
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-700">价格刷新间隔</span>
+                        <span class="text-sm font-medium text-gray-900">价格刷新间隔</span>
                         <div class="flex items-center gap-2">
                             <input 
                                 type="number" 
@@ -119,15 +119,15 @@ onUnmounted(() => {
                                 @input="handlePriceIntervalChange($event.target.value)"
                                 min="1" 
                                 max="60" 
-                                class="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="w-16 px-2 py-1 text-sm text-gray-900 bg-white border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500"
                             />
-                            <span class="text-sm text-gray-600">秒</span>
+                            <span class="text-sm font-semibold text-blue-600">秒</span>
                         </div>
                     </div>
                     
                     <!-- K线刷新间隔 -->
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-700">K线刷新间隔</span>
+                        <span class="text-sm font-medium text-gray-900">K线刷新间隔</span>
                         <div class="flex items-center gap-2">
                             <input 
                                 type="number" 
@@ -135,9 +135,9 @@ onUnmounted(() => {
                                 @input="handleKlineIntervalChange($event.target.value)"
                                 min="1" 
                                 max="60" 
-                                class="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="w-16 px-2 py-1 text-sm text-gray-900 bg-white border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500"
                             />
-                            <span class="text-sm text-gray-600">秒</span>
+                            <span class="text-sm font-semibold text-blue-600">秒</span>
                         </div>
                     </div>
                 </div>
