@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { FutureItem, AlertType, type TriggeredAlert } from '../types';
-import { mockDataService } from '../services/mockData';
+import { serviceManager } from '../services/ServiceManager';
 import { notificationService } from '../services/notification';
+import type { IDataService } from '../services/interfaces';
 
 export const useFuturesStore = defineStore('futures', () => {
     const futures = ref<FutureItem[]>([]);
     const triggeredAlerts = ref<TriggeredAlert[]>([]);
     const isInitialized = ref(false);
+    const dataService = ref<IDataService | null>(null);
 
     // Calculate P&L for a single item
     const getPnL = (item: FutureItem) => {
@@ -77,14 +79,17 @@ export const useFuturesStore = defineStore('futures', () => {
 
         isInitialized.value = true;
 
-        // Load from storage
-        const stored = localStorage.getItem('futures_watchlist');
-        if (stored) {
-            futures.value = JSON.parse(stored);
-        }
-
-        // 延迟导入settings store避免循环依赖
         try {
+            // 初始化数据服务
+            dataService.value = await serviceManager.createDataService('mock');
+
+            // Load from storage
+            const stored = localStorage.getItem('futures_watchlist');
+            if (stored) {
+                futures.value = JSON.parse(stored);
+            }
+
+            // 延迟导入settings store避免循环依赖
             const { useSettingsStore } = await import('./settings');
             const settingsStore = useSettingsStore();
             
@@ -92,12 +97,13 @@ export const useFuturesStore = defineStore('futures', () => {
             settingsStore.loadSettings();
             await settingsStore.applyShortcut();
             
-            // 使用设置的刷新间隔启动模拟
+            // 使用数据服务启动数据流
             const priceIntervalMs = settingsStore.settings.priceRefreshInterval * 1000;
-            mockDataService.startSimulation(priceIntervalMs);
+            await dataService.value.start(priceIntervalMs);
             
-            mockDataService.subscribe(async (data) => {
-                // Merge mock price updates with stored items
+            // 订阅数据更新
+            dataService.value.subscribe(async (data) => {
+                // Merge data updates with stored items
                 if (futures.value.length === 0) {
                     futures.value = data;
                     return;
@@ -125,10 +131,17 @@ export const useFuturesStore = defineStore('futures', () => {
                 await Promise.all(alertTasks);
             });
 
+            // 通知数据服务当前监控的期货列表
+            if (futures.value.length > 0) {
+                await dataService.value.setWatchedFutures(futures.value);
+            }
+
             // 监听价格刷新间隔变化
-            watch(() => settingsStore.settings.priceRefreshInterval, (newInterval) => {
+            watch(() => settingsStore.settings.priceRefreshInterval, async (newInterval) => {
                 const intervalMs = newInterval * 1000;
-                mockDataService.updateInterval(intervalMs);
+                if (dataService.value) {
+                    await dataService.value.updateInterval(intervalMs);
+                }
             });
         } catch (error) {
             console.error('Failed to initialize futures store:', error);
@@ -136,23 +149,50 @@ export const useFuturesStore = defineStore('futures', () => {
         }
     };
 
-    const addFuture = (future: FutureItem) => {
+    const addFuture = async (future: FutureItem) => {
         futures.value.push(future);
         save();
-        // In real app, would also subscribe to new symbol
+        
+        // 通知数据服务添加监控
+        if (dataService.value) {
+            try {
+                await dataService.value.addWatchedFuture(future);
+            } catch (error) {
+                console.error('Failed to add future to data service:', error);
+            }
+        }
     };
 
-    const updateFuture = (id: string, updates: Partial<FutureItem>) => {
+    const updateFuture = async (id: string, updates: Partial<FutureItem>) => {
         const index = futures.value.findIndex(f => f.id === id);
         if (index !== -1) {
             futures.value[index] = { ...futures.value[index], ...updates };
             save();
+            
+            // 如果更新了symbol等关键信息，通知数据服务更新监控列表
+            if (dataService.value && (updates.symbol || updates.name)) {
+                try {
+                    await dataService.value.setWatchedFutures(futures.value);
+                } catch (error) {
+                    console.error('Failed to update watched futures:', error);
+                }
+            }
         }
     };
 
-    const deleteFuture = (id: string) => {
+    const deleteFuture = async (id: string) => {
+        const future = futures.value.find(f => f.id === id);
         futures.value = futures.value.filter(f => f.id !== id);
         save();
+        
+        // 通知数据服务移除监控
+        if (dataService.value && future) {
+            try {
+                await dataService.value.removeWatchedFuture(id);
+            } catch (error) {
+                console.error('Failed to remove future from data service:', error);
+            }
+        }
     };
 
     const save = () => {
@@ -161,16 +201,106 @@ export const useFuturesStore = defineStore('futures', () => {
 
     // 手动刷新价格数据
     const refreshPrices = async () => {
-        // 对于mock数据，我们可以强制触发一次更新
+        if (!dataService.value) {
+            console.error('Data service not initialized');
+            return;
+        }
+
         try {
+            await dataService.value.refresh();
+        } catch (error) {
+            console.error('Failed to refresh prices:', error);
+        }
+    };
+
+    // 获取期货选项
+    const getFuturesOptions = async (category?: string) => {
+        if (!dataService.value) {
+            console.error('Data service not initialized');
+            return [];
+        }
+
+        try {
+            const options = await dataService.value.getAllOptions();
+            return category && category !== 'all' 
+                ? options.filter(item => item.category === category)
+                : options;
+        } catch (error) {
+            console.error('Failed to get futures options:', error);
+            return [];
+        }
+    };
+
+    // 搜索期货选项
+    const searchFuturesOptions = async (query: string, category?: string) => {
+        if (!dataService.value) {
+            console.error('Data service not initialized');
+            return [];
+        }
+
+        try {
+            return await dataService.value.searchOptions(query, category);
+        } catch (error) {
+            console.error('Failed to search futures options:', error);
+            return [];
+        }
+    };
+
+    // 获取分类列表
+    const getCategories = async () => {
+        if (!dataService.value) {
+            console.error('Data service not initialized');
+            return [];
+        }
+
+        try {
+            return await dataService.value.getCategories();
+        } catch (error) {
+            console.error('Failed to get categories:', error);
+            return [];
+        }
+    };
+
+    // 切换数据服务
+    const switchDataService = async (type: 'mock' | 'test') => {
+        try {
+            if (dataService.value && dataService.value.isActive()) {
+                await dataService.value.stop();
+            }
+
+            dataService.value = await serviceManager.createDataService(type);
+            
+            // 重新启动数据流
             const { useSettingsStore } = await import('./settings');
             const settingsStore = useSettingsStore();
             const priceIntervalMs = settingsStore.settings.priceRefreshInterval * 1000;
-            
-            mockDataService.stopSimulation();
-            mockDataService.startSimulation(priceIntervalMs);
+            await dataService.value.start(priceIntervalMs);
+
+            // 通知新的数据服务当前监控的期货
+            if (futures.value.length > 0) {
+                await dataService.value.setWatchedFutures(futures.value);
+            }
+
+            console.log(`Switched to ${type} data service`);
         } catch (error) {
-            console.error('Failed to refresh prices:', error);
+            console.error('Failed to switch data service:', error);
+        }
+    };
+
+    // 获取数据服务监控的期货列表
+    const getDataServiceWatchedFutures = (): FutureItem[] => {
+        return dataService.value ? dataService.value.getWatchedFutures() : [];
+    };
+
+    // 同步监控状态到数据服务
+    const syncWatchedFuturesToDataService = async () => {
+        if (dataService.value) {
+            try {
+                await dataService.value.setWatchedFutures(futures.value);
+                console.log('Synced watched futures to data service');
+            } catch (error) {
+                console.error('Failed to sync watched futures:', error);
+            }
         }
     };
 
@@ -186,6 +316,12 @@ export const useFuturesStore = defineStore('futures', () => {
         addFuture,
         updateFuture,
         deleteFuture,
-        refreshPrices
+        refreshPrices,
+        getFuturesOptions,
+        searchFuturesOptions,
+        getCategories,
+        switchDataService,
+        getDataServiceWatchedFutures,
+        syncWatchedFuturesToDataService
     };
 });

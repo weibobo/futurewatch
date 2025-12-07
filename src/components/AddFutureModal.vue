@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useFuturesStore } from '../stores/futures';
-import { CATEGORIES, searchFutures, type FutureOption } from '../data/futuresList';
 import { TradeType, AlertType, type PriceAlert } from '../types';
+
+import type { FutureOption } from '../services/interfaces';
 
 const emit = defineEmits(['close']);
 const store = useFuturesStore();
@@ -24,10 +25,36 @@ const selectedCategory = ref('all');
 const selectedIndex = ref(-1);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 
+// 期货选项数据
+const futuresOptions = ref<FutureOption[]>([]);
+const categories = ref<Array<{value: string, label: string}>>([]);
+
 // 过滤后的选项
 const filteredOptions = computed(() => {
-  return searchFutures(searchTerm.value, selectedCategory.value);
+  if (!futuresOptions.value.length) return [];
+  
+  const filtered = selectedCategory.value === 'all' 
+    ? futuresOptions.value 
+    : futuresOptions.value.filter(item => item.category === selectedCategory.value);
+  
+  if (!searchTerm.value.trim()) return filtered;
+  
+  const lowerQuery = searchTerm.value.toLowerCase();
+  return filtered.filter(item => 
+    item.symbol.toLowerCase().includes(lowerQuery) ||
+    item.name.toLowerCase().includes(lowerQuery)
+  );
 });
+
+// 加载期货选项数据
+const loadFuturesOptions = async () => {
+  try {
+    futuresOptions.value = await store.getFuturesOptions();
+    categories.value = await store.getCategories();
+  } catch (error) {
+    console.error('Failed to load futures options:', error);
+  }
+};
 
 // 切换下拉框
 const toggleDropdown = () => {
@@ -130,6 +157,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
+  loadFuturesOptions();
 });
 
 onUnmounted(() => {
@@ -207,7 +235,7 @@ const add = () => {
                         <!-- 分类筛选 -->
                         <div class="p-2 border-b border-gray-100 flex gap-1 flex-wrap">
                             <button 
-                                v-for="cat in CATEGORIES" 
+                                v-for="cat in categories" 
                                 :key="cat.value"
                                 @click="selectedCategory = cat.value"
                                 :class="{
