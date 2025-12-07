@@ -13,6 +13,15 @@ export interface PriceAlert {
     price: number;
 }
 
+export interface TriggeredAlert {
+    futureId: string;
+    symbol: string;
+    name: string;
+    type: AlertType;
+    triggerPrice: number;
+    triggeredAt: number;
+}
+
 export interface FutureItem {
     id: string;
     symbol: string;

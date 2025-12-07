@@ -1,15 +1,19 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
+mod notification;
+
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .invoke_handler(tauri::generate_handler![notification::send_notification])
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let toggle_i = MenuItem::with_id(app, "toggle", "Toggle Window", true, None::<&str>)?;
@@ -42,22 +46,18 @@ pub fn run() {
                     } => {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
-                            } else {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
                         }
                     }
                     _ => {}
                 })
                 .build(app)?;
 
-            // Global Shortcut: Alt+Space (or Command+Space on Mac if mapped)
-            // Using Shift+F as a safer test default to avoid conflicts
-            let ctrl_space = Shortcut::new(Some(Modifiers::ALT), Code::Space);
-            app.handle().global_shortcut().register(ctrl_space)?;
+            // Global Shortcut: Shift+F to avoid conflicts with Alt+Space
+            let shift_f = Shortcut::new(Some(Modifiers::SHIFT), Code::KeyF);
+            app.handle().global_shortcut().register(shift_f)?;
 
             Ok(())
         })

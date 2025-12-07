@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useFuturesStore } from '../stores/futures';
-import { FUTURES_OPTIONS, CATEGORIES, searchFutures, type FutureOption } from '../data/futuresList';
+import { CATEGORIES, searchFutures, type FutureOption } from '../data/futuresList';
 import { TradeType, AlertType, type PriceAlert } from '../types';
 
 const emit = defineEmits(['close']);
@@ -104,7 +104,7 @@ const dropdownPosition = ref({ top: 0, left: 0, right: 0, width: 0 });
 const calculateDropdownPosition = (container: HTMLElement) => {
   const rect = container.getBoundingClientRect();
   const viewportHeight = window.innerHeight;
-  const modalTop = 0; // 模态框居中，从顶部开始计算
+  // 模态框居中，从顶部开始计算
   
   dropdownPosition.value = {
     top: rect.bottom + 2,
@@ -274,7 +274,7 @@ const add = () => {
             
             <!-- 价格告警 -->
             <div>
-                <label class="block text-xs text-gray-500 font-medium mb-2">价格告警</label>
+                <label class="block text-xs text-gray-500 font-medium mb-2">价格告警 <span class="text-orange-600 font-bold">⚠️ 触发后自动删除</span></label>
                 <div class="space-y-2">
                     <div class="flex items-center gap-2">
                         <select v-model="alerts[0].type" class="flex-shrink-0 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-gray-900">

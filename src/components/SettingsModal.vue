@@ -116,7 +116,7 @@ onUnmounted(() => {
                             <input 
                                 type="number" 
                                 v-model.number="priceInterval"
-                                @input="handlePriceIntervalChange($event.target.value)"
+                                @input="handlePriceIntervalChange(($event.target as HTMLInputElement).value)"
                                 min="1" 
                                 max="60" 
                                 class="w-16 px-2 py-1 text-sm text-gray-900 bg-white border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500"
@@ -132,7 +132,7 @@ onUnmounted(() => {
                             <input 
                                 type="number" 
                                 v-model.number="klineInterval"
-                                @input="handleKlineIntervalChange($event.target.value)"
+                                @input="handleKlineIntervalChange(($event.target as HTMLInputElement).value)"
                                 min="1" 
                                 max="60" 
                                 class="w-16 px-2 py-1 text-sm text-gray-900 bg-white border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500"

@@ -25,7 +25,7 @@ watch(() => props.future, (newFuture) => {
   if (newFuture) {
     symbol.value = newFuture.symbol;
     name.value = newFuture.name;
-    tradeType.value = newFuture.tradeType || TradeType.EMPTY;
+    tradeType.value = newFuture.tradeType || TradeType.LONG;
     price.value = newFuture.price;
     quantity.value = newFuture.quantity;
     
@@ -96,7 +96,7 @@ const update = () => {
             
             <!-- 价格告警 -->
             <div>
-                <label class="block text-xs text-gray-500 font-medium mb-2">价格告警</label>
+                <label class="block text-xs text-gray-500 font-medium mb-2">价格告警 <span class="text-orange-600 font-bold">⚠️ 触发后自动删除</span></label>
                 <div class="space-y-2">
                     <div class="flex items-center gap-2">
                         <select v-model="alerts[0].type" class="flex-shrink-0 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-gray-900">

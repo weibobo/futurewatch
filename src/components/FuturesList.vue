@@ -46,12 +46,6 @@ const formatPercent = (percent: number) => {
   return (percent * 100).toFixed(2) + '%';
 };
 
-const hasSpaceForSymbol = (item: any) => {
-  // 根据名字长度判断是否有空间显示symbol
-  // 简单规则：名字长度 <= 6 时显示symbol，超过则隐藏
-  return (item.name || '').length <= 6;
-};
-
 const formatSignedValue = (value: number, decimals = 2, suffix = '') => {
   if (typeof value !== 'number' || isNaN(value)) {
     return `+${(0).toFixed(decimals)}${suffix}`;
@@ -80,7 +74,7 @@ const formatPnLPercent = (item: any) => {
         <div class="flex justify-between items-center mb-1">
           <div class="flex items-center gap-2 flex-1 min-w-0">
             <h3 class="font-bold text-gray-900 text-sm truncate flex-shrink-0">{{ item.name }}</h3>
-            <span v-if="hasSpaceForSymbol(item)" class="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">({{ item.symbol }})</span>
+            <span class="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap max-[380px]:hidden">({{ item.symbol }})</span>
             <!-- Action Buttons - 显示在名称后面 -->
             <div class="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 flex-shrink-0">
               <button @click.stop="startEdit(item)" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-1.5 py-0.5 rounded font-medium transition-colors flex items-center">

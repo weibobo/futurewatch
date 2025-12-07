@@ -21,7 +21,7 @@ export class MockDataService {
 
         this.intervalId = setInterval(() => {
             this.futures = this.futures.map(f => {
-                const move = (Math.random() - 0.5) * 0.002; // 0.2% movement
+                const move = (Math.random() - 0.5) * 0.02; // 改为2%波动，更容易触发
                 const newPrice = f.lastPrice * (1 + move);
                 return {
                     ...f,

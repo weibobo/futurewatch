@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
-import { FutureItem } from '../types';
+import { FutureItem, AlertType, type TriggeredAlert } from '../types';
 import { mockDataService } from '../services/mockData';
+import { notificationService } from '../services/notification';
 
 export const useFuturesStore = defineStore('futures', () => {
     const futures = ref<FutureItem[]>([]);
+    const triggeredAlerts = ref<TriggeredAlert[]>([]);
 
     // Calculate P&L for a single item
     const getPnL = (item: FutureItem) => {
@@ -29,6 +31,44 @@ export const useFuturesStore = defineStore('futures', () => {
         }, 0);
     });
 
+    // 检查并触发告警
+    const checkAndTriggerAlerts = async (item: FutureItem) => {
+        if (!item.alerts || item.alerts.length === 0) return;
+
+        for (const alert of item.alerts) {
+            if (alert.price <= 0) continue; // 跳过未设置的告警
+
+            const shouldTrigger = 
+                (alert.type === AlertType.RISE && item.lastPrice >= alert.price) ||
+                (alert.type === AlertType.FALL && item.lastPrice <= alert.price);
+
+            if (shouldTrigger) {
+                const triggeredAlert: TriggeredAlert = {
+                    futureId: item.id,
+                    symbol: item.symbol,
+                    name: item.name,
+                    type: alert.type,
+                    triggerPrice: item.lastPrice,
+                    triggeredAt: Date.now()
+                };
+
+                // 发送通知
+                await notificationService.sendAlert(triggeredAlert);
+                
+                // 记录已触发告警
+                triggeredAlerts.value.push(triggeredAlert);
+
+                // 清除已触发的告警设置
+                const updatedAlerts = item.alerts.filter(a => 
+                    !(a.type === alert.type && a.price === alert.price)
+                );
+                
+                // 更新期货项的告警设置
+                updateFuture(item.id, { alerts: updatedAlerts });
+            }
+        }
+    };
+
     const init = async () => {
         // Load from storage
         const stored = localStorage.getItem('futures_watchlist');
@@ -48,23 +88,33 @@ export const useFuturesStore = defineStore('futures', () => {
             const priceIntervalMs = settingsStore.settings.priceRefreshInterval * 1000;
             mockDataService.startSimulation(priceIntervalMs);
             
-            mockDataService.subscribe((data) => {
+            mockDataService.subscribe(async (data) => {
                 // Merge mock price updates with stored items
-                // In a real app, we'd only update prices for validation items
-                // For this mock, we'll just take the mock data if our list is empty, 
-                // or update our list items with new prices if they exist in mock
                 if (futures.value.length === 0) {
                     futures.value = data;
-                } else {
-                    // Update prices for existing items
-                    futures.value = futures.value.map(f => {
-                        const update = data.find(d => d.symbol === f.symbol);
-                        if (update) {
-                            return { ...f, lastPrice: update.lastPrice, changePercent: update.changePercent, changeAmount: update.changeAmount };
-                        }
-                        return f;
-                    });
+                    return;
                 }
+
+                const updatedItems = futures.value.map(f => {
+                    const update = data.find(d => d.symbol === f.symbol);
+                    if (update) {
+                        return {
+                            ...f,
+                            lastPrice: update.lastPrice,
+                            changePercent: update.changePercent,
+                            changeAmount: update.changeAmount
+                        };
+                    }
+                    return f;
+                });
+
+                futures.value = updatedItems;
+
+                const alertTasks = updatedItems
+                    .filter(item => item.alerts && item.alerts.length > 0)
+                    .map(item => checkAndTriggerAlerts(item));
+
+                await Promise.all(alertTasks);
             });
 
             // 监听价格刷新间隔变化
@@ -121,6 +171,7 @@ export const useFuturesStore = defineStore('futures', () => {
     return {
         futures,
         totalPnL,
+        triggeredAlerts,
         getPnL,
         init,
         addFuture,

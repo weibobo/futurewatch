@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createChart, CrosshairMode } from 'lightweight-charts';
-import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 
 const props = defineProps<{
@@ -14,7 +14,7 @@ const settingsStore = useSettingsStore();
 const chartContainer = ref<HTMLElement | null>(null);
 const chart = ref<any>(null);
 const candleSeries = ref<any>(null);
-const isHovering = ref(false);
+
 const currentTimeRange = ref('1H');
 const chartData = ref<any[]>([]);
 const klineUpdateInterval = ref<number | null>(null);
