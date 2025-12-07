@@ -90,6 +90,7 @@ export const useFuturesStore = defineStore('futures', () => {
             
             // 加载设置
             settingsStore.loadSettings();
+            await settingsStore.applyShortcut();
             
             // 使用设置的刷新间隔启动模拟
             const priceIntervalMs = settingsStore.settings.priceRefreshInterval * 1000;

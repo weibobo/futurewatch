@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useSettingsStore } from '../stores/settings';
+import type { ShortcutSetting } from '../stores/settings';
 
 const emit = defineEmits(['close']);
 const settingsStore = useSettingsStore();
@@ -9,53 +10,82 @@ const settingsStore = useSettingsStore();
 const priceInterval = ref(settingsStore.settings.priceRefreshInterval);
 const klineInterval = ref(settingsStore.settings.klineRefreshInterval);
 
-// 快捷键设置
-const shortcuts = ref([
-    { id: 'toggle_window', name: '显示/隐藏窗口', key: 'Ctrl+Shift+F', current: 'Ctrl+Shift+F' },
-]);
-
 // 快捷键编辑相关
-const editingShortcut = ref<string | null>(null);
-const tempKey = ref('');
+const isEditingShortcut = ref(false);
+const tempShortcut = ref<ShortcutSetting | null>(null);
 
-const startEdit = (shortcutId: string) => {
-    editingShortcut.value = shortcutId;
-    tempKey.value = '';
+const cloneShortcut = (shortcut: ShortcutSetting): ShortcutSetting => ({
+  code: shortcut.code,
+  label: shortcut.label,
+  modifiers: { ...shortcut.modifiers },
+});
+
+const createShortcutFromEvent = (event: KeyboardEvent): ShortcutSetting | null => {
+  if (!event.code || ['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) {
+    return null;
+  }
+
+  const modifiers = {
+    ctrl: event.ctrlKey,
+    shift: event.shiftKey,
+    alt: event.altKey,
+    meta: event.metaKey,
+  };
+
+  const label = settingsStore.buildShortcutLabel(event.code, modifiers);
+
+  return {
+    code: event.code,
+    label,
+    modifiers,
+  };
+};
+
+const shortcutLabel = computed(() => {
+  if (isEditingShortcut.value) {
+    return tempShortcut.value?.label || '请按键...';
+  }
+  return settingsStore.settings.toggleShortcut.label;
+});
+
+const shortcutStatusMessage = computed(() => {
+  if (settingsStore.shortcutStatus === 'failed') {
+    return '⚠️ 快捷键注册失败，组合可能被其他程序占用，请尝试更换。';
+  }
+  if (settingsStore.shortcutStatus === 'unsupported') {
+    return '⚠️ 当前运行在浏览器模式，无法注册系统快捷键。';
+  }
+  return '';
+});
+
+const startEdit = () => {
+  isEditingShortcut.value = true;
+  tempShortcut.value = cloneShortcut(settingsStore.settings.toggleShortcut);
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-    if (!editingShortcut.value) return;
-    
-    event.preventDefault();
-    event.stopPropagation();
-    
-    let keyCombo = '';
-    
-    if (event.ctrlKey) keyCombo += 'Ctrl+';
-    if (event.shiftKey) keyCombo += 'Shift+';
-    if (event.altKey) keyCombo += 'Alt+';
-    if (event.metaKey) keyCombo += 'Meta+';
-    
-    const mainKey = event.key;
-    if (['Control', 'Shift', 'Alt', 'Meta'].includes(mainKey)) return;
-    
-    keyCombo += mainKey;
-    tempKey.value = keyCombo;
+  if (!isEditingShortcut.value) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const nextShortcut = createShortcutFromEvent(event);
+  if (nextShortcut) {
+    tempShortcut.value = nextShortcut;
+  }
 };
 
-const saveShortcut = (shortcutId: string) => {
-    const shortcut = shortcuts.value.find(s => s.id === shortcutId);
-    if (shortcut && tempKey.value) {
-        shortcut.current = tempKey.value;
-        // TODO: 保存到Tauri配置
-    }
-    editingShortcut.value = null;
-    tempKey.value = '';
+const saveShortcut = async () => {
+  if (tempShortcut.value) {
+    await settingsStore.applyShortcut(tempShortcut.value);
+  }
+  isEditingShortcut.value = false;
+  tempShortcut.value = null;
 };
 
 const cancelEdit = () => {
-    editingShortcut.value = null;
-    tempKey.value = '';
+  isEditingShortcut.value = false;
+  tempShortcut.value = null;
 };
 
 // 刷新间隔处理
@@ -147,35 +177,35 @@ onUnmounted(() => {
             <div>
                 <h3 class="text-sm font-bold text-gray-700 mb-2">快捷键设置</h3>
                 <div class="space-y-2">
-                    <div v-for="shortcut in shortcuts" :key="shortcut.id" class="flex items-center justify-between py-1.5 border-b border-gray-50">
-                        <span class="text-sm text-gray-700">{{ shortcut.name }}</span>
+                    <div class="flex items-center justify-between py-1.5 border-b border-gray-50">
+                        <span class="text-sm text-gray-700 whitespace-nowrap">显示/隐藏</span>
                         <div class="flex items-center gap-2">
                             <button 
-                                v-if="editingShortcut === shortcut.id"
-                                @click="saveShortcut(shortcut.id)"
+                                v-if="isEditingShortcut"
+                                @click="saveShortcut"
                                 class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                             >
                                 保存
                             </button>
                             <button 
                                 v-else
-                                @click="startEdit(shortcut.id)"
+                                @click="startEdit"
                                 class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                             >
                                 编辑
                             </button>
                             
-                            <div class="w-24 px-2 py-1 text-center">
-                                <div v-if="editingShortcut === shortcut.id" class="text-xs text-blue-600 font-mono bg-blue-50 rounded">
-                                    {{ tempKey || '请按键...' }}
-                                </div>
-                                <div v-else class="text-xs text-gray-600 font-mono bg-gray-50 rounded">
-                                    {{ shortcut.current }}
+                            <div class="w-28 px-2 py-1 text-center">
+                                <div :class="[
+                                    'text-xs font-mono rounded px-2 py-1 transition-colors',
+                                    isEditingShortcut ? 'text-blue-600 bg-blue-50' : 'text-gray-600 bg-gray-50'
+                                ]">
+                                    {{ shortcutLabel }}
                                 </div>
                             </div>
                             
                             <button 
-                                v-if="editingShortcut === shortcut.id"
+                                v-if="isEditingShortcut"
                                 @click="cancelEdit"
                                 class="px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200"
                             >
@@ -183,6 +213,12 @@ onUnmounted(() => {
                             </button>
                         </div>
                     </div>
+                    <p 
+                        v-if="shortcutStatusMessage"
+                        class="text-xs text-red-600 bg-red-50 border border-red-100 rounded px-2 py-1"
+                    >
+                        {{ shortcutStatusMessage }}
+                    </p>
                 </div>
             </div>
             
