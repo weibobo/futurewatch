@@ -7,6 +7,7 @@ import { notificationService } from '../services/notification';
 export const useFuturesStore = defineStore('futures', () => {
     const futures = ref<FutureItem[]>([]);
     const triggeredAlerts = ref<TriggeredAlert[]>([]);
+    const isInitialized = ref(false);
 
     // Calculate P&L for a single item
     const getPnL = (item: FutureItem) => {
@@ -70,6 +71,12 @@ export const useFuturesStore = defineStore('futures', () => {
     };
 
     const init = async () => {
+        if (isInitialized.value) {
+            return;
+        }
+
+        isInitialized.value = true;
+
         // Load from storage
         const stored = localStorage.getItem('futures_watchlist');
         if (stored) {
@@ -124,6 +131,7 @@ export const useFuturesStore = defineStore('futures', () => {
             });
         } catch (error) {
             console.error('Failed to initialize futures store:', error);
+            isInitialized.value = false;
         }
     };
 
